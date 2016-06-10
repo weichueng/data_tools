@@ -1,0 +1,55 @@
+{
+  "development": {
+    "username": "butterflyhub",
+    "password": "8ctqxppOurIG",
+    "database": "butterflyhub_ingest_new",
+    "host": "butterflyhub.cno95htghvpf.us-west-2.rds.amazonaws.com",
+    "dialect": "mysql"
+  },
+  "new": {
+    "username": "butterflyhub",
+    "password": "8ctqxppOurIG",
+    "database": "butterflyhub_new",
+    "host": "butterflyhub.cno95htghvpf.us-west-2.rds.amazonaws.com",
+    "dialect": "mysql"
+  },
+  "local": {
+    "username": "root",
+    "database": "MockupDB",
+    "host": "127.0.0.1",
+    "dialect": "mysql"
+  },
+  "online": {
+    "username": "butterflyhub",
+    "password": "8ctqxppOurIG",
+    "database": "bh_scraping",
+    "host": "butterflyhub.cno95htghvpf.us-west-2.rds.amazonaws.com",
+    "dialect": "mysql"
+  },
+  "ingest": {
+    "username": "butterflyhub",
+    "password": "8ctqxppOurIG",
+    "database": "butterflyhub_ingest",
+    "host": "butterflyhub.cno95htghvpf.us-west-2.rds.amazonaws.com",
+    "dialect": "mysql"
+  },
+  "aaa": {
+    "dialect": "sqlite",
+    "storage": "./db.development.sqlite"
+  },
+  "staging": {
+    "username": "butterflyhub",
+    "password": "8ctqxppOurIG",
+    "database": "butterflyhub_dev",
+    "host": "butterflyhub.cno95htghvpf.us-west-2.rds.amazonaws.com",
+    "dialect": "mysql"
+  },
+  "production": {
+    "username": "butterflyhub",
+    "password": "8ctqxppOurIG",
+    "database": "butterflyhub",
+    "host": "butterflyhub.cno95htghvpf.us-west-2.rds.amazonaws.com",
+    "dialect": "mysql"
+  },
+  "secret": "butterflyhubloveall"
+}

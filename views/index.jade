@@ -1,0 +1,31 @@
+extends layout
+
+block content
+  h1= title
+
+    // Wrapper
+    #wrapper
+
+        // USER LIST
+        h2 User List
+        
+        #userPhotoList
+            table
+                thead
+                    tr
+                        th PhotoUrl
+                        th Status
+                        th 
+                        th 
+                tbody#results
+                tfoot
+                    td Page 
+                      span#page
+                    td 
+                      button#get 
+                        Get Some images
+        // /USER LIST
+    // /WRAPPER
+  script(src="//cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.min.js")
+  script(src="/javascripts/tagging_images.js")
+
