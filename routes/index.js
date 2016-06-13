@@ -6,30 +6,72 @@ var fs = require('fs');
 var gm = require('gm');
 var path = require('path');
 var get_url = require("url"); 
+var async = require('async');
 
 var router = express.Router();
-
+var run_detach_face = false, run_photo_betaface = false, run_update_face = false, run_send_betaface = false;
 var btF_request = request.defaults({headers: {'content-type':'application/json'}});
 
-router.get('/index', function(req, res, next) {
-  	get_insgest_photo();
-  	
-});
+
+//************
+// all function 
+//************
+
+//get_all_have_face();
+//select_photos_betaface();
+get_insgest_photo();
+//get_have_face_photos();
+
+//setInterval(get_all_have_face, 20000);
+setInterval(get_insgest_photo, 20000);
+//setInterval(get_have_face_photos, 20000);
+//setInterval(select_photos_betaface, 20000);
+
+//***********
+// end function 
+//***********
 
 router.get('/', function (req, res, next) {
 	res.render('index', {title: 'Index'});
 });
 
+function get_all_have_face (){
+	if (!run_update_face)
+	{
+		run_update_face = true;
+		models.ing_photos.findAll({
+			limit : 50,
+			where : ['have_face > 0'],
+			order : 'id desc'
+		}).then(function(data) {
+			console.log('totalcount : '+data.length);
+			update_have_face_to_null(data);
+		})
+		.catch(function(error) {
+			console.log(error + '  error');
+		});
+	}
+	
+}
 
+function update_have_face_to_null(datas)
+{
+	async.mapLimit(datas, 3,
+		function(data_value, callback){
+			console.log(data_value.id);
+			data_value.have_face = null;
+			data_value.status = null;
+			data_value.save().then(function(saveObj){
+				callback();
+			});
+		},
+		function(err){
+			console.log('done update have face to null');
+			run_update_face = false;
+		}
+	);
+}
 
-router.get('/test', function(req, res, next) {
-  models.data_values.findAll().then(function(users) {
-     console.log('xxxxxx' + JSON.stringify(users));
-  });
-  // models_sub.data_values.findAll().then(function(users) {
-  //    console.log('ttttttttt ------------' + JSON.stringify(users));
-  // });  
-});
 
 function get_photo_betaface(){
 	var query = 'SELECT b.id, a.main_photo_url, b.source FROM ing_photos_betaface as a '+
@@ -60,13 +102,13 @@ function get_photo_betaface(){
 }
 
 
+
+
+
 // get_photo_betaface();
 // setInterval(get_photo_betaface, 2000);
 //select_photos_betaface();
-//get_insgest_photo();
-//get_have_face_photos();
-//setInterval(get_insgest_photo, 20000);
-//setInterval(get_have_face_photos, 20000);
+
 //check_bench_mark();
 
 //get_photo_system_id();
@@ -159,109 +201,180 @@ function upload_img(){
 }
 
 function get_insgest_photo(){
-	models.ing_photos.findAll({
-		limit : 40,
-		where : ['have_face is null'],
-		order : 'id desc'
-	}).then(function(data) {
-		for (i = 0; i < data.length; i++) {
-			detach_face(data[i].original_url.split("?")[0], data[i].id);
-		}
-  	})
-  	.catch(function(error) {
-      	console.log(error + '  error');
-  	});
+	if(!run_detach_face)
+	{
+		models.ing_photos.findAll({
+			limit : 100,
+			where : ['have_face is null'],
+			order : 'id desc'
+		}).then(function(data) {
+			run_detach_face = true;
+			console.log('get have face is null photo : ' + data.length);
+			if(data.length>0)
+			{
+				 detach_face(data);
+			}
+		})
+		.catch(function(error) {
+			console.log(error + '  error');
+		});
+	}
 }
 
 function get_have_face_photos(){
-	models.ing_photos.findAll({
-		limit : 100,
-		where : ['have_face > 0 and status is null'],
-		order : 'id desc'
-	}).then(function(data) {
-		for (i = 0; i < data.length; i++) {
-			insert_to_ing_photos_betaface(data[i].original_url.split("?")[0], data[i].id);
-		}
-  	})
-  	.catch(function(error) {
-      	console.log(error + '  error');
-  	});
-}
-
-function insert_to_ing_photos_betaface(img_url, id){
-	models.sequelize.query('INSERT INTO ing_photos_betaface (photo_id, main_photo_url) values ($1, "'+img_url+'")',
-		{ bind: [id], type: models.sequelize.QueryTypes.INSERT} )
-	.then(function (updateResult) {
-		models.sequelize.query('UPDATE ing_photos set status="copied" WHERE id in ($1)',
-		{ bind: [id], type: models.sequelize.QueryTypes.BULKUPDATE} )
-		.then(function (updateResult) {
-			console.log('update id : ' + id);
+	if(!run_photo_betaface)
+	{
+		//run_photo_betaface = true;
+		models.ing_photos.findAll({
+			limit : 50,
+			where : ['status is null and  have_face > 0 '],
+			order : 'id desc'
+		}).then(function(data) {
+			//insert_to_ing_photos_betaface(data);
+			run_photo_betaface = true;
+			console.log('get have face photo : ' + data.length);
+			if(data.length>0)
+			{
+				 insert_to_ing_photos_betaface(data);
+			}
+		})
+		.catch(function(error) {
+			console.log(error + '  error');
 		});
-		//console.log('insert id : ' + id);
-	});
+	}
 }
 
-function detach_face(img_url, id){
-	var stream = request(img_url);
-	var req = request.post('http://172.31.179.63:5000/face_detector', function (err, resp, body) {
-	  if (err) {
-	    console.log('Error!');
-	  } else {
-	  		console.log(img_url);
-	  		var have_face = 0;
-	  		var data = JSON.parse(body);
-	  		if(data.images[0].faces.length >0 )
-		  		have_face  = data.images[0].faces.length; 
-		  	models.sequelize.query('UPDATE ing_photos set have_face="'+have_face+'" WHERE id in ($1)',
-			{ bind: [id], type: models.sequelize.QueryTypes.BULKUPDATE} )
+function insert_to_ing_photos_betaface(datas){
+	async.mapLimit(datas, 3,
+		function(data_value, callback){
+			models.sequelize.query('INSERT INTO ing_photos_betaface (photo_id, photo_url) values ($1, "'+data_value.original_url.split("?")[0]+'")',
+				{ bind: [data_value.id], type: models.sequelize.QueryTypes.INSERT} )
 			.then(function (updateResult) {
-				console.log('update id : ' + id);
+				models.sequelize.query('UPDATE ing_photos set status="copied" WHERE id in ($1)',
+				{ bind: [data_value.id], type: models.sequelize.QueryTypes.BULKUPDATE} )
+				.then(function (updateResult) {
+					console.log('update id : ' + data_value.id);
+					callback();
+				});
 			});
-	    //console.log('URL: ' + body);
-	  }
-	});
-	var form = req.form();
-	form.append('file', stream);
+		},
+		function(err){
+			console.log('done insert to ing_photos_betaface');
+			run_photo_betaface = false;
+		}
+	);
+}
+
+function detach_face(datas){
+	async.mapLimit(datas, 3,
+		  function(data_value, callback){
+			  var statusCode = 0;
+		   	var stream = request(data_value.original_url.split("?")[0]);
+			
+			var req = request.post('http://172.31.179.63:5000/face_detector', function (err, resp, body) {
+			if (err) {
+				console.log('Error!');
+			} else {
+				var have_face = 0;
+				if(testJSON(body)){
+					var data = JSON.parse(body);
+					if(data.images[0].faces.length >0 )
+						have_face  = data.images[0].faces.length; 
+					models.sequelize.query('UPDATE ing_photos set have_face="'+have_face+'", thumbnail="$2" WHERE id = $1',
+					{ bind: [data_value.id, body], type: models.sequelize.QueryTypes.BULKUPDATE} )
+					.then(function (updateResult) {
+						console.log('update id : ' + data_value.id);
+						callback();
+					});
+				}
+				else
+				{
+					models.sequelize.query('UPDATE ing_photos set have_face="-1" WHERE id = $1',
+					{ bind: [data_value.id], type: models.sequelize.QueryTypes.BULKUPDATE} )
+					.then(function (updateResult) {
+						console.log('error image : ' + data_value.original_url.split("?")[0]);
+						callback();
+					});
+				}
+			}
+			});
+			var form = req.form();
+			form.append('file', stream);
+		  },
+		  function(err){
+		    // All tasks are done now
+		    console.log('done');
+			run_detach_face = false;
+		  }
+		);
+}
+
+function testJSON(text){
+    try{
+        JSON.parse(text);
+        return true;
+    }
+    catch (error){
+        return false;
+    }
 }
 
 function select_photos_betaface (){
-	models.sequelize.query('SELECT id, main_photo_url FROM ing_photos_betaface where uuid is null limit 500',
+	if(!run_send_betaface)
+	{
+		models.sequelize.query('SELECT id, photo_url FROM ing_photos_betaface where uuid is null limit 500',
 		{ type: models.sequelize.QueryTypes.SELECT} )
-	.then(function (data) {
-		for (i = 0; i < data.length; i++) {
-			upload_img(data[i].main_photo_url.split("?")[0], data[i].id);
-		}
-	});
+		.then(function (data) {
+			//for (i = 0; i < data.length; i++) {
+				run_send_betaface = true;
+				upload_img(data);
+				//upload_img(data[i].main_photo_url.split("?")[0], data[i].id);
+			//}
+		});
+	}
+	
 }
 
-function upload_img(img_url, id){
-	var reqq = btF_request.post(
-	{
-	    url: 'http://www.betafaceapi.com/service_json.svc/UploadImage',
-	    body: JSON.stringify(
-	        {
-	        api_key:"d45fd466-51e2-4701-8da8-04351c872236",
-	        api_secret:"171e8465-f548-401d-b63b-caf0dc28df5f",
-	        detection_flags:"propoints,classifiers,extended",
-	        url: img_url
-	        })
-	    },
-	    //main handler function here:
-	    function(error, response, body){
-	        if (response.statusCode == 200) {
-	        		var data = JSON.parse(body);
-	        		if(data.img_uid != '00000000-0000-0000-0000-000000000000')
-	        		{
-	        			models.sequelize.query('UPDATE ing_photos_betaface set uuid ="'+data.img_uid+'" WHERE id in ($1)',
-						{ bind: [id], type: models.sequelize.QueryTypes.BULKUPDATE} )
-						.then(function (updateResult) {
-							console.log('update id : ' + id);
-	        			});
-	        		}	
-	        } else {
-	            res.end(0);
-	        }
-	    }
+function upload_img(datas){
+	async.mapLimit(datas, 3,
+		function(data_value, callback){
+			var reqq = btF_request.post(
+			{
+				url: 'http://www.betafaceapi.com/service_json.svc/UploadImage',
+				body: JSON.stringify(
+					{
+					api_key:"d45fd466-51e2-4701-8da8-04351c872236",
+					api_secret:"171e8465-f548-401d-b63b-caf0dc28df5f",
+					detection_flags:"propoints,classifiers,extended",
+					url: data_value.photo_url
+					})
+				},
+				//main handler function here:
+				function(error, response, body){
+					if (response.statusCode == 200) {
+							var data = JSON.parse(body);
+							if(data.img_uid != '00000000-0000-0000-0000-000000000000')
+							{
+								models.sequelize.query('UPDATE ing_photos_betaface set uuid ="'+data.img_uid+'" WHERE id in ($1)',
+								{ bind: [data_value.id], type: models.sequelize.QueryTypes.BULKUPDATE} )
+								.then(function (updateResult) {
+									console.log('update id : ' + data_value.id);
+								});
+							}	
+					} else {
+						console.log(0);
+					}
+				}
+			);
+		},
+		function(err){
+			console.log('done send photo betaface');
+			run_send_betaface = false;
+		}
 	);
+	
 }
+
+
+
 module.exports = router;
