@@ -10,6 +10,7 @@ var async = require('async');
 
 var router = express.Router();
 var run_detach_face = false, run_photo_betaface = false, run_update_face = false, run_send_betaface = false;
+var flag = 1; 
 var btF_request = request.defaults({headers: {'content-type':'application/json'}});
 
 
@@ -24,7 +25,7 @@ get_insgest_photo();
 
 //setInterval(get_all_have_face, 20000);
 setInterval(get_insgest_photo, 20000);
-//setInterval(get_have_face_photos, 20000);
+setInterval(get_have_face_photos, 20000);
 //setInterval(select_photos_betaface, 20000);
 
 //***********
@@ -156,19 +157,6 @@ function get_metadata(system_id, uuid, id){
 	});
 }
 
-
-function check_bench_mark(){
-	models.user_photos.findAll({
-		limit : 10
-	}).then(function(data) {
-		for (i = 0; i < data.length; i++) {
-			console.log(data[i]);
-		}
-  	})
-  	.catch(function(error) {
-      	console.log(error + '  error');
-  	});
-}
 function upload_img(){
 	var reqq = btF_request.post(
 	{
@@ -201,7 +189,7 @@ function upload_img(){
 }
 
 function get_insgest_photo(){
-	if(!run_detach_face)
+	if(!run_detach_face && flag == 1)
 	{
 		models.ing_photos.findAll({
 			limit : 100,
@@ -222,16 +210,17 @@ function get_insgest_photo(){
 }
 
 function get_have_face_photos(){
-	if(!run_photo_betaface)
+	if(!run_photo_betaface && flag == 2)
 	{
 		//run_photo_betaface = true;
+		run_photo_betaface = true;
 		models.ing_photos.findAll({
 			limit : 50,
 			where : ['status is null and  have_face > 0 '],
 			order : 'id desc'
 		}).then(function(data) {
 			//insert_to_ing_photos_betaface(data);
-			run_photo_betaface = true;
+			
 			console.log('get have face photo : ' + data.length);
 			if(data.length>0)
 			{
@@ -245,7 +234,7 @@ function get_have_face_photos(){
 }
 
 function insert_to_ing_photos_betaface(datas){
-	async.mapLimit(datas, 3,
+	async.mapLimit(datas, 5,
 		function(data_value, callback){
 			models.sequelize.query('INSERT INTO ing_photos_betaface (photo_id, photo_url) values ($1, "'+data_value.original_url.split("?")[0]+'")',
 				{ bind: [data_value.id], type: models.sequelize.QueryTypes.INSERT} )
@@ -260,13 +249,14 @@ function insert_to_ing_photos_betaface(datas){
 		},
 		function(err){
 			console.log('done insert to ing_photos_betaface');
+			flag =1;
 			run_photo_betaface = false;
 		}
 	);
 }
 
 function detach_face(datas){
-	async.mapLimit(datas, 3,
+	async.mapLimit(datas, 5,
 		  function(data_value, callback){
 			  var statusCode = 0;
 		   	var stream = request(data_value.original_url.split("?")[0]);
@@ -304,6 +294,7 @@ function detach_face(datas){
 		  function(err){
 		    // All tasks are done now
 		    console.log('done');
+			flag =2;
 			run_detach_face = false;
 		  }
 		);
@@ -322,10 +313,11 @@ function testJSON(text){
 function select_photos_betaface (){
 	if(!run_send_betaface)
 	{
-		models.sequelize.query('SELECT id, photo_url FROM ing_photos_betaface where uuid is null limit 500',
+		models.sequelize.query('SELECT id, photo_url FROM ing_photos_betaface where betaFace_uuid is null limit 500',
 		{ type: models.sequelize.QueryTypes.SELECT} )
 		.then(function (data) {
 			//for (i = 0; i < data.length; i++) {
+				console.log('get photo send betaface : ' + data.length);
 				run_send_betaface = true;
 				upload_img(data);
 				//upload_img(data[i].main_photo_url.split("?")[0], data[i].id);
@@ -336,15 +328,17 @@ function select_photos_betaface (){
 }
 
 function upload_img(datas){
-	async.mapLimit(datas, 3,
+	
+	async.mapLimit(datas, 5,
 		function(data_value, callback){
+			console.log(data_value.photo_url);
 			var reqq = btF_request.post(
 			{
-				url: 'http://www.betafaceapi.com/service_json.svc/UploadImage',
+				url: 'http://172.31.31.219/service_json.svc/UploadImage',
 				body: JSON.stringify(
 					{
-					api_key:"d45fd466-51e2-4701-8da8-04351c872236",
-					api_secret:"171e8465-f548-401d-b63b-caf0dc28df5f",
+					api_key:"e39b493d-1190-40b5-85a1-4a6579da1498",
+					api_secret:"ed36fa23-93c3-4b76-9225-158d78603940",
 					detection_flags:"propoints,classifiers,extended",
 					url: data_value.photo_url
 					})
@@ -355,14 +349,17 @@ function upload_img(datas){
 							var data = JSON.parse(body);
 							if(data.img_uid != '00000000-0000-0000-0000-000000000000')
 							{
-								models.sequelize.query('UPDATE ing_photos_betaface set uuid ="'+data.img_uid+'" WHERE id in ($1)',
+								models.sequelize.query('UPDATE ing_photos_betaface set betaFace_uuid ="'+data.img_uid+'" WHERE id = $1',
 								{ bind: [data_value.id], type: models.sequelize.QueryTypes.BULKUPDATE} )
 								.then(function (updateResult) {
-									console.log('update id : ' + data_value.id);
+									console.log('update betaface id : ' + data_value.id);
+									callback();
 								});
 							}	
+							callback();
 					} else {
 						console.log(0);
+						callback();
 					}
 				}
 			);
